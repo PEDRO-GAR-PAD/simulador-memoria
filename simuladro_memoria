@@ -1,0 +1,168 @@
+// simulador_memoria.cpp
+#include <iostream>
+#include <vector>
+#include <iomanip>
+#include <string>
+
+using namespace std;
+
+const int MEMORY_SIZE = 64; // en MB para simplificación visual
+const int BLOCK_SIZE = 1;   // cada bloque es de 1 MB
+
+struct Particion {
+    int inicio; // en MB
+    int tamaño; // en MB
+    bool libre;
+    string proceso;
+
+    Particion(int i, int t, bool l, string p)
+        : inicio(i), tamaño(t), libre(l), proceso(p) {}
+};
+
+vector<Particion> memoria;
+
+// Inicializa la memoria como una sola partición libre
+void inicializar_memoria() {
+    memoria.push_back(Particion(0, MEMORY_SIZE, true, ""));
+}
+
+void mostrar_memoria() {
+    cout << "\n=== Estado de la memoria ===\n";
+    for (auto &p : memoria) {
+        cout << "| ";
+        if (p.libre) {
+            cout << setw(6) << "LIBRE";
+        } else {
+            cout << setw(6) << p.proceso;
+        }
+        cout << " (" << p.tamaño << " MB) ";
+    }
+    cout << "|\n";
+}
+
+void cargar_proceso(string nombre, int tamaño) {
+    for (auto &p : memoria) {
+        if (p.libre && p.tamaño >= tamaño) {
+            if (p.tamaño == tamaño) {
+                p.libre = false;
+                p.proceso = nombre;
+            } else {
+                // Dividir partición
+                Particion nueva(p.inicio + tamaño, p.tamaño - tamaño, true, "");
+                p.tamaño = tamaño;
+                p.libre = false;
+                p.proceso = nombre;
+                memoria.insert(memoria.begin() + (&p - &memoria[0]) + 1, nueva);
+            }
+            cout << "Proceso " << nombre << " cargado (" << tamaño << " MB).\n";
+            return;
+        }
+    }
+    cout << "No hay suficiente memoria para el proceso " << nombre << ".\n";
+}
+
+void liberar_proceso(string nombre) {
+    bool encontrado = false;
+    for (auto &p : memoria) {
+        if (!p.libre && p.proceso == nombre) {
+            p.libre = true;
+            p.proceso = "";
+            encontrado = true;
+            break;
+        }
+    }
+    if (encontrado) {
+        // Fusionar particiones libres contiguas
+        for (size_t i = 0; i < memoria.size() - 1; ) {
+            if (memoria[i].libre && memoria[i + 1].libre) {
+                memoria[i].tamaño += memoria[i + 1].tamaño;
+                memoria.erase(memoria.begin() + i + 1);
+            } else {
+                i++;
+            }
+        }
+        cout << "Proceso " << nombre << " liberado.\n";
+    } else {
+        cout << "Proceso " << nombre << " no encontrado.\n";
+    }
+}
+
+void compactar_memoria() {
+    cout << "Compactando memoria...\n";
+    vector<Particion> nueva_memoria;
+    int current_inicio = 0;
+
+    // Mover todas las particiones ocupadas al principio
+    for (auto &p : memoria) {
+        if (!p.libre) {
+            nueva_memoria.push_back(Particion(current_inicio, p.tamaño, false, p.proceso));
+            current_inicio += p.tamaño;
+        }
+    }
+
+    // Crear partición libre restante
+    int espacio_libre = MEMORY_SIZE - current_inicio;
+    if (espacio_libre > 0) {
+        nueva_memoria.push_back(Particion(current_inicio, espacio_libre, true, ""));
+    }
+
+    memoria = nueva_memoria;
+    cout << "Memoria compactada.\n";
+}
+
+void calcular_fragmentacion() {
+    int frag_interna = 0;
+    int frag_externa = 0;
+
+    for (auto &p : memoria) {
+        if (p.libre) {
+            frag_externa += p.tamaño;
+        }
+    }
+
+    cout << "Fragmentación externa: " << frag_externa << " MB\n";
+    cout << "(No usamos fragmentación interna explícita aquí — si quieres, podemos agregarla)\n";
+}
+
+void menu() {
+    cout << "\n===== SIMULADOR DE MEMORIA =====\n";
+    cout << "1. Cargar proceso\n";
+    cout << "2. Liberar proceso\n";
+    cout << "3. Mostrar memoria\n";
+    cout << "4. Compactar memoria\n";
+    cout << "5. Calcular fragmentación\n";
+    cout << "0. Salir\n";
+    cout << "Seleccione: ";
+}
+
+int main() {
+    inicializar_memoria();
+
+    int opcion;
+    do {
+        menu();
+        cin >> opcion;
+        if (opcion == 1) {
+            string nombre;
+            int tamaño;
+            cout << "Nombre del proceso: ";
+            cin >> nombre;
+            cout << "Tamaño del proceso (MB): ";
+            cin >> tamaño;
+            cargar_proceso(nombre, tamaño);
+        } else if (opcion == 2) {
+            string nombre;
+            cout << "Nombre del proceso a liberar: ";
+            cin >> nombre;
+            liberar_proceso(nombre);
+        } else if (opcion == 3) {
+            mostrar_memoria();
+        } else if (opcion == 4) {
+            compactar_memoria();
+        } else if (opcion == 5) {
+            calcular_fragmentacion();
+        }
+    } while (opcion != 0);
+
+    return 0;
+}
